@@ -135,6 +135,7 @@ void ParseOptionsEM(int argc, char **argv, ProgramOptions& opt) {
     {"rf-stranded", no_argument, &strand_RF_flag, 1},
     {"bias", no_argument, &bias_flag, 1},
     {"pseudobam", no_argument, &pbam_flag, 1},
+    {"pseudocov", required_argument, 0, 'c'},
     {"fusion", no_argument, &fusion_flag, 1},
     {"seed", required_argument, 0, 'd'},
     // short args
@@ -193,6 +194,10 @@ void ParseOptionsEM(int argc, char **argv, ProgramOptions& opt) {
     }
     case 'd': {
       stringstream(optarg) >> opt.seed;
+      break;
+    }
+    case 'c': {
+      stringstream(optarg) >> opt.pseudocov;
       break;
     }
     default: break;
@@ -333,6 +338,7 @@ void ParseOptionsPseudo(int argc, char **argv, ProgramOptions& opt) {
     {"single", no_argument, &single_flag, 1},
     //{"strand-specific", no_argument, &strand_flag, 1},
     {"pseudobam", no_argument, &pbam_flag, 1},
+    {"pseudocov", required_argument, 0, 'c'},
     {"umi", no_argument, &umi_flag, 'u'},
     {"batch", required_argument, 0, 'b'},
     // short args
@@ -380,6 +386,10 @@ void ParseOptionsPseudo(int argc, char **argv, ProgramOptions& opt) {
       opt.batch_file_name = optarg;
       break;
     }
+    case 'c': {
+      stringstream(optarg) >> opt.pseudocov;
+      break;
+    }
     default: break;
     }
   }
@@ -409,7 +419,6 @@ void ParseOptionsPseudo(int argc, char **argv, ProgramOptions& opt) {
   if (pbam_flag) {
     opt.pseudobam = true;
   }
-  
   
 }
 
@@ -643,6 +652,10 @@ bool CheckOptionsEM(ProgramOptions& opt, bool emonly = false) {
       cerr << "Error: pseudobam is not compatible with running on many threads."<< endl;
       ret = false;
     }
+    if (opt.threads > 1 && opt.pseudocov > 0) {
+      cerr << "Error: pseudocov is not compatible with running on many threads."<< endl;
+      ret = false;
+    }
   }
 
   if (opt.bootstrap < 0) {
@@ -840,6 +853,10 @@ bool CheckOptionsPseudo(ProgramOptions& opt) {
       cerr << "Error: pseudobam is not compatible with running on many threads."<< endl;
       ret = false;
     }
+    if (opt.threads > 1 && opt.pseudocov > 0) {
+      cerr << "Error: pseudocov is not compatible with running on many threads."<< endl;
+      ret = false;
+    }
   }
 
   return ret;
@@ -992,6 +1009,7 @@ void usageEM(bool valid_input = true) {
        << "                              (default: -l, -s values are estimated from paired" << endl
        << "                               end data, but are required when using --single)" << endl
        << "-t, --threads=INT             Number of threads to use (default: 1)" << endl
+       << "    --pseudocov=INT           Output pseudocoverage to stdout, a transcript is mapped to INT intervals (default: 0)" << endl
        << "    --pseudobam               Output pseudoalignments in SAM format to stdout" << endl;
 
 }
@@ -1016,6 +1034,7 @@ void usagePseudo(bool valid_input = true) {
        << "                              (default: -l, -s values are estimated from paired" << endl
        << "                               end data, but are required when using --single)" << endl
        << "-t, --threads=INT             Number of threads to use (default: 1)" << endl
+       << "    --pseudocov=INT           Output pseudocoverage to stdout, a transcript is mapped to INT intervals (default: 0)" << endl
        << "    --pseudobam               Output pseudoalignments in SAM format to stdout" << endl;
 
 }

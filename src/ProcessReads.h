@@ -125,6 +125,7 @@ public:
   std::vector<std::pair<int, std::string>> ec_umi;
   std::vector<std::pair<std::vector<int>, std::string>> new_ec_umi;
   const KmerIndex& index;
+  std::vector<std::vector<int>> target_covs;
   MasterProcessor& mp;
   SequenceReader batchSR;
   int numreads;

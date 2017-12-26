@@ -33,6 +33,7 @@ struct ProgramOptions {
   bool peek; // only used for H5Dump
   bool bias;
   bool pseudobam;
+  int  pseudocov;
   bool make_unique;
   bool fusion;
   enum class StrandType {None, FR, RF};
@@ -59,6 +60,7 @@ ProgramOptions() :
   peek(false),
   bias(false),
   pseudobam(false),
+  pseudocov(0),
   make_unique(false),
   fusion(false),
   strand(StrandType::None),

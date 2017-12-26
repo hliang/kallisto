@@ -454,6 +454,15 @@ ReadProcessor::ReadProcessor(const KmerIndex& index, const ProgramOptions& opt, 
    newEcs.reserve(1000);
    counts.reserve((int) (tc.counts.size() * 1.25));
    clear();
+
+    // create pseudocoverage vector
+    if (opt.pseudocov > 0) {
+      for (int i = 0; i < index.num_trans; i++) {
+          std::vector<int> tcov(opt.pseudocov, 0); // better use 100 for real-world application
+          target_covs.push_back(tcov);
+      }
+    }
+
 }
 
 ReadProcessor::ReadProcessor(ReadProcessor && o) :
@@ -464,6 +473,7 @@ ReadProcessor::ReadProcessor(ReadProcessor && o) :
   id(o.id),
   bufsize(o.bufsize),
   numreads(o.numreads),
+  target_covs(o.target_covs),
   seqs(std::move(o.seqs)),
   names(std::move(o.names)),
   quals(std::move(o.quals)),
@@ -501,13 +511,26 @@ void ReadProcessor::operator()() {
         return;
       } else {
         // get new sequences
-        mp.SR.fetchSequences(buffer, bufsize, seqs, names, quals, umis, mp.opt.pseudobam || mp.opt.fusion);
+        mp.SR.fetchSequences(buffer, bufsize, seqs, names, quals, umis, mp.opt.pseudobam || mp.opt.pseudocov > 0 || mp.opt.fusion);
       }
       // release the reader lock
     }
 
+
     // process our sequences
     processBuffer();
+
+    // print pseudocov_vector after all buffers have been processed
+    if (mp.opt.pseudocov > 0) {
+      printf("#finalcovs:\n");
+      for (size_t i = 0; i < target_covs.size(); i++) {
+        printf("%10s", index.target_names_[i].c_str());
+          for (size_t j = 0; j < target_covs[i].size(); j++) {
+            printf(" %2d", target_covs[i][j]);
+          }
+        printf("\n");
+      }
+    }
 
     // update the results, MP acquires the lock
     mp.update(counts, newEcs, ec_umi, new_ec_umi, paired ? seqs.size()/2 : seqs.size(), flens, bias5, id);
@@ -569,6 +592,7 @@ void ReadProcessor::processBuffer() {
       s2 = seqs[i].first;
       l2 = seqs[i].second;
     }
+    std::cerr << " numreads:" << numreads << " s1:" << s1 << " l1:" << l1 << std::endl;
 
     numreads++;
     v1.clear();
@@ -580,6 +604,10 @@ void ReadProcessor::processBuffer() {
     if (paired) {
       index.match(s2,l2, v2);
     }
+    std::cerr << " v1.size:()" << v1.size() << " v1[0].first.getPos(): " << v1[0].first.getPos()
+                      << " 1:" << v1[1].first.getPos() << " 2:" << v1[2].first.getPos()
+                      << " 3:" << v1[3].first.getPos() << std::endl;
+    std::cerr << " v1[0,1,2,3].second " << v1[0].second << " " << v1[1].second << " " << v1[2].second << " "  << std::endl ;
 
     // collect the target information
     int ec = -1;
@@ -731,6 +759,7 @@ void ReadProcessor::processBuffer() {
 
     // pseudobam
     if (mp.opt.pseudobam) {
+      // std::cerr << " s1:" << s1 << " n1:" << names[i].first << " q1:" << quals[i].first << " slen1:" << l1 << " nlen1:" << names[i].second << std::endl;
       if (paired) {
         outputPseudoBam(index, u,
           s1, names[i-1].first, quals[i-1].first, l1, names[i-1].second, v1,
@@ -744,6 +773,21 @@ void ReadProcessor::processBuffer() {
       }
     }
 
+    // pseudocov
+    if (mp.opt.pseudocov > 0) {
+      std::cerr << " s1:" << s1 << " n1:" << names[i].first << " q1:" << quals[i].first << " slen1:" << l1 << " nlen1:" << names[i].second << std::endl;
+      if (paired) {
+        outputPseudoCov(index, u, target_covs,
+          s1, names[i-1].first, quals[i-1].first, l1, names[i-1].second, v1,
+          s2, names[i].first, quals[i].first, l2, names[i].second, v2,
+          paired);
+      } else {
+        outputPseudoCov(index, u, target_covs,
+          s1, names[i].first, quals[i].first, l1, names[i].second, v1,
+          nullptr, nullptr, nullptr, 0, 0, v2,
+          paired);
+      }
+    }
 
 
     /*
