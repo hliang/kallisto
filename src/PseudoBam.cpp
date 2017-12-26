@@ -512,12 +512,14 @@ void outputPseudoCov(const KmerIndex &index, const std::vector<int> &u, std::vec
 
         printf("samrecord: %s\t%d\t%s\t%d\t255\t%s\t*\t%d\t%d\t%s\t%s\tNH:i:%d\n", n1, f1 & 0xFFFF, index.target_names_[tr].c_str(), posread, cig, 0, 0, (f1 & 0x10) ? &buf1[0] : s1, (f1 & 0x10) ? &buf2[0] : q1, nmap);
 
-	int pct_left  = posread * target_covs[tr].size() / index.target_lens_[tr];
-	int pct_right = (posread + slen1 - 1) * target_covs[tr].size() / index.target_lens_[tr];
-	for (int pct = pct_left; pct <= pct_right; pct++) {
+        if ((f1 & 0x100) != 0x100) { // ignore secondary alignments
+          int pct_left  = posread * target_covs[tr].size() / index.target_lens_[tr];
+          int pct_right = (posread + slen1 - 1) * target_covs[tr].size() / index.target_lens_[tr];
+          for (int pct = pct_left; pct <= pct_right; pct++) {
             target_covs[tr][pct] += 1;
-	}
-        printf("tr:%d\ttarget_name:%s\ttarget_lens:%d\tn1:%s\tposread:%d\tslen1:%d\tpct_left:%d\tpct_right:%d\n", tr, index.target_names_[tr].c_str(), index.target_lens_[tr], n1, posread, slen1, pct_left, pct_right);
+          }
+          printf("tr:%d\ttarget_name:%s\ttarget_lens:%d\tn1:%s\tposread:%d\tslen1:%d\tpct_left:%d\tpct_right:%d\n", tr, index.target_names_[tr].c_str(), index.target_lens_[tr], n1, posread, slen1, pct_left, pct_right);
+        }
       }
     }
   }
