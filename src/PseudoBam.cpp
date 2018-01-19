@@ -431,18 +431,37 @@ void outputPseudoCov(const KmerIndex &index, const std::vector<int> &u, std::vec
           int pct_left  = -1;
           int pct_right = -1;
           if (x1.second) {
-            pct_left  = int((x1.first - 1) * target_covs[tr].size() / index.target_lens_[tr]);
-            pct_right = int((x2.first - 1) * target_covs[tr].size() / index.target_lens_[tr]);
+            pct_left  = int((x1.first - 1) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
+            pct_right = int((x2.first - 1) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
+            // handle overhang/softclip
+            if (pct_left < 0) {
+              pct_left = 0;
+            }
+            if (pct_right < 0) {
+              pct_right = 0;
+            }
+            if (pct_left >= target_covs[tr].size()) {
+              pct_left = target_covs[tr].size() - 1;
+            }
+            if (pct_right >= target_covs[tr].size()) {
+              pct_right = target_covs[tr].size() - 1;
+            }
           } else {
-            pct_left  = int((x2.first - 1) * target_covs[tr].size() / index.target_lens_[tr]);
-            pct_right = int((x1.first - 1) * target_covs[tr].size() / index.target_lens_[tr]);
-          }
-          // handle overhang/softclip
-          if (pct_left < 0) {
-            pct_left = 0;
-          }
-          if (pct_right > target_covs[tr].size()) {
-            pct_right = target_covs[tr].size() - 1;
+            pct_left  = int((x2.first - 1) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
+            pct_right = int((x1.first - 1) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
+            // handle overhang/softclip
+            if (pct_left < 0) {
+              pct_left = 0;
+            }
+            if (pct_right < 0) {
+              pct_right = 0;
+            }
+            if (pct_left >= target_covs[tr].size()) {
+              pct_left = target_covs[tr].size() - 1;
+            }
+            if (pct_right >= target_covs[tr].size()) {
+              pct_right = target_covs[tr].size() - 1;
+            }
           }
           printf("tr:%d\ttarget_name:%s\ttarget_lens:%d\tn1:%s\tposread:%d\tslen1:%d\tpct_left:%d\tpct_right:%d x1.first:%d x2.first:%d rev:%d target_cov.size:%d\n", tr, index.target_names_[tr].c_str(), index.target_lens_[tr], n1, posread, slen1, pct_left, pct_right, x1.first, x2.first, f1 & 0x10, target_covs[tr].size());
           for (int pct = pct_left; pct <= pct_right; pct++) {
@@ -490,18 +509,18 @@ void outputPseudoCov(const KmerIndex &index, const std::vector<int> &u, std::vec
         if ((f1 & 0x100) != 0x100) { // ignore secondary alignments
           int pct_left  = -1;
           int pct_right = -1;
-          if (!x1.second) {
-            pct_left  = int((x1.first - 1) * target_covs[tr].size() / index.target_lens_[tr]);
-            pct_right = int((x1.first + slen1 - 1) * target_covs[tr].size() / index.target_lens_[tr]);
+          if (x1.second) {
+            pct_left  = int((x1.first - 1) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
+            pct_right = int((x1.first + slen1 - 2) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
           } else {
-            pct_left  = int((x1.first - slen1 - 1) * target_covs[tr].size() / index.target_lens_[tr]);
-            pct_right = int((x1.first - 1) * target_covs[tr].size() / index.target_lens_[tr]);
+            pct_left  = int((x1.first - slen1) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
+            pct_right = int((x1.first - 1) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
           }
           // handle overhand/softclip
           if (pct_left < 0) {
             pct_left = 0;
           }
-          if (pct_right > target_covs[tr].size()) {
+          if (pct_right >= target_covs[tr].size()) {
             pct_right = target_covs[tr].size() - 1;
           }
 
@@ -510,7 +529,7 @@ void outputPseudoCov(const KmerIndex &index, const std::vector<int> &u, std::vec
           for (int pct = pct_left; pct <= pct_right; pct++) {
             target_covs[tr][pct] += 1;
           }
-          printf("tr:%d\ttarget_name:%s\ttarget_lens:%d\tn1:%s\tposread:%d\tslen1:%d\tpct_left:%d\tpct_right:%d\n", tr, index.target_names_[tr].c_str(), index.target_lens_[tr], n1, posread, slen1, pct_left, pct_right);
+          printf("tr:%d\ttarget_name:%s\ttarget_lens:%d\tn1:%s\tposread:%d\tslen1:%d\tpct_left:%d\tpct_right:%d x1.first:%d x1.second:%d\n", tr, index.target_names_[tr].c_str(), index.target_lens_[tr], n1, posread, slen1, pct_left, pct_right, x1.first, x1.second);
         }
       }
     }
