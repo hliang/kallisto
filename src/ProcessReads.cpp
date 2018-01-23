@@ -176,10 +176,28 @@ int ProcessReads(KmerIndex& index, const ProgramOptions& opt, MinCollector& tc) 
   }
 
   MasterProcessor MP(index, opt, tc);
+  // create the master pseudocoverage vector
+  if (opt.pseudocov > 0) {
+    for (int i = 0; i < index.num_trans; i++) {
+        std::vector<int> tcov(opt.pseudocov, 0); // better use 100 for real-world application
+        MP.mp_target_covs.push_back(tcov);
+    }
+  }
   MP.processReads();
   numreads = MP.numreads;
   nummapped = MP.nummapped;
   std::cerr << " done" << std::endl;
+  // final covs
+  if (opt.pseudocov > 0) {
+    printf("# finalcovs:\n");
+    for (int i = 0; i < MP.mp_target_covs.size(); i++) {
+      printf("%d %s", i, index.target_names_[i].c_str());
+        for (size_t j = 0; j < MP.mp_target_covs[i].size(); j++) {
+          printf(" %2d", MP.mp_target_covs[i][j]);
+        }
+      printf("\n");
+    }
+  }
 
   //std::cout << "betterCount = " << betterCount << ", out of betterCand = " << betterCand << std::endl;
 
@@ -356,7 +374,7 @@ void MasterProcessor::processReads() {
 
 void MasterProcessor::update(const std::vector<int>& c, const std::vector<std::vector<int> > &newEcs, 
                             std::vector<std::pair<int, std::string>>& ec_umi, std::vector<std::pair<std::vector<int>, std::string>> &new_ec_umi, 
-                            int n, std::vector<int>& flens, std::vector<int> &bias, int id) {
+                            int n, std::vector<int>& flens, std::vector<int> &bias, std::vector<std::vector<int>> &target_covs, int id) {
   // acquire the writer lock
   std::lock_guard<std::mutex> lock(this->writer_lock);
 
@@ -420,6 +438,13 @@ void MasterProcessor::update(const std::vector<int>& c, const std::vector<std::v
   }
 
   numreads += n;
+  if (opt.pseudocov > 0) {
+    for (auto &tcov : target_covs) {
+      for (int i = 0; i < tcov.size() - 1; i++) {
+        mp_target_covs[tcov.back()][i] += tcov[i];
+      }
+    }
+  }
   // releases the lock
 }
 
@@ -453,15 +478,8 @@ ReadProcessor::ReadProcessor(const KmerIndex& index, const ProgramOptions& opt, 
    }
    newEcs.reserve(1000);
    counts.reserve((int) (tc.counts.size() * 1.25));
+   target_covs.reserve(1000);
    clear();
-
-    // create pseudocoverage vector
-    if (opt.pseudocov > 0) {
-      for (int i = 0; i < index.num_trans; i++) {
-          std::vector<int> tcov(opt.pseudocov, 0); // better use 100 for real-world application
-          target_covs.push_back(tcov);
-      }
-    }
 
 }
 
@@ -521,10 +539,10 @@ void ReadProcessor::operator()() {
     processBuffer();
 
     // print pseudocov_vector after all buffers have been processed
-    if (mp.opt.pseudocov > 0) {
-      printf("#finalcovs:\n");
-      for (size_t i = 0; i < target_covs.size(); i++) {
-        printf("%10s", index.target_names_[i].c_str());
+    if (mp.opt.verbose && mp.opt.pseudocov > 0) {
+      printf("#buffercovs:\n");
+      for (int i = 0; i < target_covs.size(); i++) {
+        printf("%d %s", i, index.target_names_[target_covs[i].back()].c_str());
           for (size_t j = 0; j < target_covs[i].size(); j++) {
             printf(" %2d", target_covs[i][j]);
           }
@@ -533,7 +551,7 @@ void ReadProcessor::operator()() {
     }
 
     // update the results, MP acquires the lock
-    mp.update(counts, newEcs, ec_umi, new_ec_umi, paired ? seqs.size()/2 : seqs.size(), flens, bias5, id);
+    mp.update(counts, newEcs, ec_umi, new_ec_umi, paired ? seqs.size()/2 : seqs.size(), flens, bias5, target_covs, id);
     clear();
   }
 }
@@ -543,6 +561,7 @@ void ReadProcessor::processBuffer() {
   std::vector<std::pair<KmerEntry,int>> v1, v2;
   std::vector<int> vtmp;
   std::vector<int> u;
+  //std::vector<int> tcov(mp.opt.pseudocov + 1, 0);
 
   u.reserve(1000);
   v1.reserve(1000);
@@ -592,7 +611,7 @@ void ReadProcessor::processBuffer() {
       s2 = seqs[i].first;
       l2 = seqs[i].second;
     }
-    std::cerr << " numreads:" << numreads << " s1:" << s1 << " l1:" << l1 << std::endl;
+    //std::cerr << " numreads:" << numreads << " s1:" << s1 << " l1:" << l1 << std::endl;
 
     numreads++;
     v1.clear();
@@ -604,10 +623,10 @@ void ReadProcessor::processBuffer() {
     if (paired) {
       index.match(s2,l2, v2);
     }
-    std::cerr << " v1.size:()" << v1.size() << " v1[0].first.getPos(): " << v1[0].first.getPos()
-                      << " 1:" << v1[1].first.getPos() << " 2:" << v1[2].first.getPos()
-                      << " 3:" << v1[3].first.getPos() << std::endl;
-    std::cerr << " v1[0,1,2,3].second " << v1[0].second << " " << v1[1].second << " " << v1[2].second << " "  << std::endl ;
+    // std::cerr << " v1.size:()" << v1.size() << " v1[0].first.getPos(): " << v1[0].first.getPos()
+    //                   << " 1:" << v1[1].first.getPos() << " 2:" << v1[2].first.getPos()
+    //                   << " 3:" << v1[3].first.getPos() << std::endl;
+    // std::cerr << " v1[0,1,2,3].second " << v1[0].second << " " << v1[1].second << " " << v1[2].second << " "  << std::endl ;
 
     // collect the target information
     int ec = -1;
@@ -775,7 +794,7 @@ void ReadProcessor::processBuffer() {
 
     // pseudocov
     if (mp.opt.pseudocov > 0) {
-      std::cerr << " s1:" << s1 << " n1:" << names[i].first << " q1:" << quals[i].first << " slen1:" << l1 << " nlen1:" << names[i].second << std::endl;
+      // std::cerr << " s1:" << s1 << " n1:" << names[i].first << " q1:" << quals[i].first << " slen1:" << l1 << " nlen1:" << names[i].second << std::endl;
       if (paired) {
         outputPseudoCov(index, u, target_covs,
           s1, names[i-1].first, quals[i-1].first, l1, names[i-1].second, v1,
@@ -806,6 +825,7 @@ void ReadProcessor::clear() {
   counts.resize(tc.counts.size(),0);
   ec_umi.clear();
   new_ec_umi.clear();
+  target_covs.clear();
 }
 
 

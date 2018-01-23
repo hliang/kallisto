@@ -652,10 +652,6 @@ bool CheckOptionsEM(ProgramOptions& opt, bool emonly = false) {
       cerr << "Error: pseudobam is not compatible with running on many threads."<< endl;
       ret = false;
     }
-    if (opt.threads > 1 && opt.pseudocov > 0) {
-      cerr << "Error: pseudocov is not compatible with running on many threads."<< endl;
-      ret = false;
-    }
   }
 
   if (opt.bootstrap < 0) {

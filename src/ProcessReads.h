@@ -108,9 +108,10 @@ public:
   std::vector<std::unordered_map<std::vector<int>, int, SortedVectorHasher>> newBatchECcount;
   std::vector<std::vector<std::pair<int, std::string>>> batchUmis;
   std::vector<std::vector<std::pair<std::vector<int>, std::string>>> newBatchECumis;
+  std::vector<std::vector<int>> mp_target_covs;
   void processReads();
 
-  void update(const std::vector<int>& c, const std::vector<std::vector<int>>& newEcs, std::vector<std::pair<int, std::string>>& ec_umi, std::vector<std::pair<std::vector<int>, std::string>> &new_ec_umi, int n, std::vector<int>& flens, std::vector<int> &bias, int id = -1);
+  void update(const std::vector<int>& c, const std::vector<std::vector<int>>& newEcs, std::vector<std::pair<int, std::string>>& ec_umi, std::vector<std::pair<std::vector<int>, std::string>> &new_ec_umi, int n, std::vector<int>& flens, std::vector<int> &bias, std::vector<std::vector<int>> &target_covs, int id = -1);
 };
 
 class ReadProcessor {
