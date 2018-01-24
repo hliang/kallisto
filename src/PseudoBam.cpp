@@ -293,7 +293,7 @@ q1, q2: quality score
 slen1, slen2: sequence length
 v1, v2: contains all equiv classes for the k-mers in s1/s2, i.e. kmers
 */
-void outputPseudoCov(const KmerIndex &index, const std::vector<int> &u, std::vector<std::vector<int>> &target_covs,
+void outputPseudoCov(const KmerIndex &index, const std::vector<int> &u, std::vector<std::vector<int>> &target_covs, const int &nquantiles,
     const char *s1, const char *n1, const char *q1, int slen1, int nlen1, const std::vector<std::pair<KmerEntry,int>>& v1,
     const char *s2, const char *n2, const char *q2, int slen2, int nlen2, const std::vector<std::pair<KmerEntry,int>>& v2,
     bool paired) {
@@ -439,7 +439,7 @@ void outputPseudoCov(const KmerIndex &index, const std::vector<int> &u, std::vec
           }
           // add new tr to target_cov
           if (!pcov) {
-            target_covs.push_back(std::vector<int> (20 + 1, 0)); // TODO, pass mp.opt.pseudocov
+            target_covs.push_back(std::vector<int> (nquantiles + 1, 0));
             pcov = &target_covs.back();
             (*pcov).back() = tr; //
             //printf("new tr:%d\n", tr);
@@ -535,7 +535,7 @@ void outputPseudoCov(const KmerIndex &index, const std::vector<int> &u, std::vec
           }
           // add new tr to target_cov
           if (!pcov) {
-            target_covs.push_back(std::vector<int> (20 + 1, 0)); // TODO, pass mp.opt.pseudocov
+            target_covs.push_back(std::vector<int> (nquantiles + 1, 0));
             pcov = &target_covs.back();
             (*pcov).back() = tr; //
             //printf("new tr:%d\n", tr);

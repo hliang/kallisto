@@ -189,10 +189,9 @@ int ProcessReads(KmerIndex& index, const ProgramOptions& opt, MinCollector& tc) 
   std::cerr << " done" << std::endl;
   // final covs
   if (opt.pseudocov > 0) {
-    printf("# finalcovs:\n");
     printf("target_id");
     for (int i = 0; i < MP.opt.pseudocov; i++) {
-      printf("\tbin%02d", i+1);
+      printf("\tq%02d", i);
     }
     printf("\n");
     for (int i = 0; i < MP.mp_target_covs.size(); i++) {
@@ -801,12 +800,12 @@ void ReadProcessor::processBuffer() {
     if (mp.opt.pseudocov > 0) {
       // std::cerr << " s1:" << s1 << " n1:" << names[i].first << " q1:" << quals[i].first << " slen1:" << l1 << " nlen1:" << names[i].second << std::endl;
       if (paired) {
-        outputPseudoCov(index, u, target_covs,
+        outputPseudoCov(index, u, target_covs, mp.opt.pseudocov,
           s1, names[i-1].first, quals[i-1].first, l1, names[i-1].second, v1,
           s2, names[i].first, quals[i].first, l2, names[i].second, v2,
           paired);
       } else {
-        outputPseudoCov(index, u, target_covs,
+        outputPseudoCov(index, u, target_covs, mp.opt.pseudocov,
           s1, names[i].first, quals[i].first, l1, names[i].second, v1,
           nullptr, nullptr, nullptr, 0, 0, v2,
           paired);
