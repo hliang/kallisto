@@ -423,6 +423,105 @@ void ParseOptionsPseudo(int argc, char **argv, ProgramOptions& opt) {
 }
 
 
+void ParseOptionsPseudocov(int argc, char **argv, ProgramOptions& opt) {
+  int verbose_flag = 0;
+  int single_flag = 0;
+  int strand_flag = 0;
+  int pbam_flag = 0;
+  int umi_flag = 0;
+
+  const char *opt_string = "t:i:l:s:o:b:";
+  static struct option long_options[] = {
+    // long args
+    {"verbose", no_argument, &verbose_flag, 1},
+    {"single", no_argument, &single_flag, 1},
+    //{"strand-specific", no_argument, &strand_flag, 1},
+    {"pseudobam", no_argument, &pbam_flag, 1},
+    {"pseudocov", required_argument, 0, 'c'},
+    {"umi", no_argument, &umi_flag, 'u'},
+    {"batch", required_argument, 0, 'b'},
+    // short args
+    {"threads", required_argument, 0, 't'},
+    {"index", required_argument, 0, 'i'},
+    {"fragment-length", required_argument, 0, 'l'},
+    {"sd", required_argument, 0, 's'},
+    {"output-dir", required_argument, 0, 'o'},
+    {0,0,0,0}
+  };
+  int c;
+  int option_index = 0;
+  while (true) {
+    c = getopt_long(argc,argv,opt_string, long_options, &option_index);
+
+    if (c == -1) {
+      break;
+    }
+
+    switch (c) {
+    case 0:
+      break;
+    case 't': {
+      stringstream(optarg) >> opt.threads;
+      break;
+    }
+    case 'i': {
+      opt.index = optarg;
+      break;
+    }
+    case 'l': {
+      stringstream(optarg) >> opt.fld;
+      break;
+    }
+    case 's': {
+      stringstream(optarg) >> opt.sd;
+      break;
+    }
+    case 'o': {
+      opt.output = optarg;
+      break;
+    }
+    case 'b': {
+      opt.batch_mode = true;
+      opt.batch_file_name = optarg;
+      break;
+    }
+    case 'c': {
+      stringstream(optarg) >> opt.pseudocov;
+      break;
+    }
+    default: break;
+    }
+  }
+  
+  if (umi_flag) {
+    opt.umi = true;
+    opt.single_end = true; // UMI implies single end reads
+  }
+
+  // all other arguments are fast[a/q] files to be read
+  for (int i = optind; i < argc; i++) {
+    opt.files.push_back(argv[i]);
+  }
+ 
+  if (verbose_flag) {
+    opt.verbose = true;
+  }
+
+  if (single_flag) {
+    opt.single_end = true;
+  }
+
+  if (strand_flag) {
+    opt.strand_specific = true;
+  }
+
+  if (pbam_flag) {
+    opt.pseudobam = true;
+  }
+  
+}
+
+
 void ParseOptionsH5Dump(int argc, char **argv, ProgramOptions& opt) {
   int peek_flag = 0;
   const char *opt_string = "o:";
@@ -849,10 +948,6 @@ bool CheckOptionsPseudo(ProgramOptions& opt) {
       cerr << "Error: pseudobam is not compatible with running on many threads."<< endl;
       ret = false;
     }
-    if (opt.threads > 1 && opt.pseudocov > 0) {
-      cerr << "Error: pseudocov is not compatible with running on many threads."<< endl;
-      ret = false;
-    }
   }
 
   return ret;
@@ -1017,6 +1112,31 @@ void usagePseudo(bool valid_input = true) {
   }
 
   cout << "Usage: kallisto pseudo [arguments] FASTQ-files" << endl << endl
+       << "Required arguments:" << endl
+       << "-i, --index=STRING            Filename for the kallisto index to be used for" << endl
+       << "                              pseudoalignment" << endl
+       << "-o, --output-dir=STRING       Directory to write output to" << endl << endl
+       << "Optional arguments:" << endl
+       << "-u  --umi                     First file in pair is a UMI file" << endl
+       << "-b  --batch=FILE              Process files listed in FILE" << endl
+       << "    --single                  Quantify single-end reads" << endl
+       << "-l, --fragment-length=DOUBLE  Estimated average fragment length" << endl
+       << "-s, --sd=DOUBLE               Estimated standard deviation of fragment length" << endl
+       << "                              (default: -l, -s values are estimated from paired" << endl
+       << "                               end data, but are required when using --single)" << endl
+       << "-t, --threads=INT             Number of threads to use (default: 1)" << endl
+       << "    --pseudocov=INT           Output pseudocoverage to stdout, a transcript is mapped to INT intervals (default: 0)" << endl
+       << "    --pseudobam               Output pseudoalignments in SAM format to stdout" << endl;
+
+}
+
+void usagePseudocov(bool valid_input = true) {
+  if (valid_input) {
+    cout << "kallisto " << KALLISTO_VERSION << endl
+         << "Computes pseudo covarage" << endl << endl;
+  }
+
+  cout << "Usage: kallisto pseudocov [arguments] FASTQ-files" << endl << endl
        << "Required arguments:" << endl
        << "-i, --index=STRING            Filename for the kallisto index to be used for" << endl
        << "                              pseudoalignment" << endl
@@ -1386,6 +1506,49 @@ int main(int argc, char *argv[]) {
           */
 
           writeBatchMatrix((opt.output + "/matrix"),index, opt.batch_ids,batchCounts);
+        }
+
+        std::string call = argv_to_string(argc, argv);
+
+        plaintext_aux(
+            opt.output + "/run_info.json",
+            std::string(std::to_string(index.num_trans)),
+            std::string(std::to_string(0)), // no bootstraps in pseudo
+            std::string(std::to_string(num_processed)),
+            KALLISTO_VERSION,
+            std::string(std::to_string(index.INDEX_VERSION)),
+            start_time,
+            call);
+
+        cerr << endl;
+      }
+    } else if (cmd == "pseudocov") {
+      if (argc==2) {
+        usagePseudocov();
+        return 0;
+      }
+      ParseOptionsPseudocov(argc-1,argv+1,opt);
+      if (!CheckOptionsPseudo(opt)) {
+        cerr << endl;
+        usagePseudocov(false);
+        exit(1);
+      } else {
+        // pseudoalign the reads
+        KmerIndex index(opt);
+        index.load(opt);
+
+        MinCollector collection(index, opt);
+        int num_processed = 0;
+
+        if (!opt.batch_mode) {
+          num_processed = ProcessReads(index, opt, collection);
+          // collection.write((opt.output + "/pseudoalignments"));
+          // TODO write pseudocov to file
+        } else {
+
+          std::vector<std::vector<int>> batchCounts;
+          num_processed = ProcessBatchReads(index, opt, collection, batchCounts);
+          // TODO write pseudocov to file
         }
 
         std::string call = argv_to_string(argc, argv);
