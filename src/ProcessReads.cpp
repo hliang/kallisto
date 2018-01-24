@@ -190,10 +190,15 @@ int ProcessReads(KmerIndex& index, const ProgramOptions& opt, MinCollector& tc) 
   // final covs
   if (opt.pseudocov > 0) {
     printf("# finalcovs:\n");
+    printf("target_id");
+    for (int i = 0; i < MP.opt.pseudocov; i++) {
+      printf("\tbin%02d", i+1);
+    }
+    printf("\n");
     for (int i = 0; i < MP.mp_target_covs.size(); i++) {
-      printf("%d %s", i, index.target_names_[i].c_str());
+      printf("%s", index.target_names_[i].c_str());
         for (size_t j = 0; j < MP.mp_target_covs[i].size(); j++) {
-          printf(" %2d", MP.mp_target_covs[i][j]);
+          printf("\t%d", MP.mp_target_covs[i][j]);
         }
       printf("\n");
     }
@@ -538,7 +543,7 @@ void ReadProcessor::operator()() {
     // process our sequences
     processBuffer();
 
-    // print pseudocov_vector after all buffers have been processed
+    // print pseudocov vector after each buffer has been processed
     if (mp.opt.verbose && mp.opt.pseudocov > 0) {
       printf("#buffercovs:\n");
       for (int i = 0; i < target_covs.size(); i++) {

@@ -524,41 +524,47 @@ void outputPseudoCov(const KmerIndex &index, const std::vector<int> &u, std::vec
         //printf("samrecord: %s\t%d\t%s\t%d\t255\t%s\t*\t%d\t%d\t%s\t%s\tNH:i:%d\n", n1, f1 & 0xFFFF, index.target_names_[tr].c_str(), posread, cig, 0, 0, (f1 & 0x10) ? &buf1[0] : s1, (f1 & 0x10) ? &buf2[0] : q1, nmap);
 
         if ((f1 & 0x100) != 0x100) { // ignore secondary alignments
+          std::vector<int>* pcov = nullptr;  // pointer to vector
+          // check if tr is already in target_covs
+          for (auto&& tmp : target_covs){
+            if (tmp.back() == tr) {
+              //printf("existing tr:%d\n", tr);
+              pcov = &tmp;
+              break;
+            }
+          }
+          // add new tr to target_cov
+          if (!pcov) {
+            target_covs.push_back(std::vector<int> (20 + 1, 0)); // TODO, pass mp.opt.pseudocov
+            pcov = &target_covs.back();
+            (*pcov).back() = tr; //
+            //printf("new tr:%d\n", tr);
+          }
           int pct_left  = -1;
           int pct_right = -1;
           if (x1.second) {
-            pct_left  = int((x1.first - 1) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
-            pct_right = int((x1.first + slen1 - 2) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
+            pct_left  = int((x1.first - 1) * static_cast<int>((*pcov).size() - 1) / index.target_lens_[tr]);
+            pct_right = int((x1.first + slen1 - 2) * static_cast<int>((*pcov).size() - 1) / index.target_lens_[tr]);
           } else {
-            pct_left  = int((x1.first - slen1) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
-            pct_right = int((x1.first - 1) * static_cast<int>(target_covs[tr].size()) / index.target_lens_[tr]);
+            pct_left  = int((x1.first - slen1) * static_cast<int>((*pcov).size() - 1) / index.target_lens_[tr]);
+            pct_right = int((x1.first - 1) * static_cast<int>((*pcov).size() - 1) / index.target_lens_[tr]);
           }
           // handle overhand/softclip
           if (pct_left < 0) {
             pct_left = 0;
           }
-          if (pct_right >= target_covs[tr].size()) {
-            pct_right = target_covs[tr].size() - 1;
+          if (pct_right >= (*pcov).size() - 1) {
+            pct_right = (*pcov).size() - 1 - 1;
           }
 
           //int pct_left  = posread * target_covs[tr].size() / index.target_lens_[tr];
           //int pct_right = (posread + slen1 - 1) * target_covs[tr].size() / index.target_lens_[tr];
           for (int pct = pct_left; pct <= pct_right; pct++) {
-            target_covs[tr][pct] += 1;
+            (*pcov)[pct] += 1;
           }
-          printf("tr:%d\ttarget_name:%s\ttarget_lens:%d\tn1:%s\tposread:%d\tslen1:%d\tpct_left:%d\tpct_right:%d x1.first:%d x1.second:%d\n", tr, index.target_names_[tr].c_str(), index.target_lens_[tr], n1, posread, slen1, pct_left, pct_right, x1.first, x1.second);
+          //printf("tr:%d\ttarget_name:%s\ttarget_lens:%d\tn1:%s\tposread:%d\tslen1:%d\tpct_left:%d\tpct_right:%d x1.first:%d x1.second:%d\n", tr, index.target_names_[tr].c_str(), index.target_lens_[tr], n1, posread, slen1, pct_left, pct_right, x1.first, x1.second);
         }
       }
     }
-  }
-  // for debug, print covs of all transcripts
-  if (false) {
-  for (size_t i = 0; i < target_covs.size(); i++) {
-    printf("covs %10s", index.target_names_[i].c_str());
-      for (size_t j = 0; j < target_covs[i].size(); j++) {
-        printf(" %2d", target_covs[i][j]);
-      }
-    printf("\n");
-  }
   }
 }
