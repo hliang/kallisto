@@ -954,6 +954,176 @@ bool CheckOptionsPseudo(ProgramOptions& opt) {
 }
 
 
+bool CheckOptionsPseudocov(ProgramOptions& opt) {
+
+  bool ret = true;
+
+  cerr << endl;
+  // check for index
+  if (opt.index.empty()) {
+    cerr << ERROR_STR << " kallisto index file missing" << endl;
+    ret = false;
+  } else {
+    struct stat stFileInfo;
+    auto intStat = stat(opt.index.c_str(), &stFileInfo);
+    if (intStat != 0) {
+      cerr << ERROR_STR << " kallisto index file not found " << opt.index << endl;
+      ret = false;
+    }
+  }
+
+  // check for read files
+  if (!opt.batch_mode) {
+    if (opt.umi) {
+      cerr << ERROR_STR << " UMI must be run in batch mode, use --batch option" << endl;
+      ret = false;      
+    }
+    
+    if (opt.files.size() == 0) {
+      cerr << ERROR_STR << " Missing read files" << endl;
+      ret = false;
+    } else {
+      struct stat stFileInfo;      
+      for (auto& fn : opt.files) {        
+        auto intStat = stat(fn.c_str(), &stFileInfo);
+        if (intStat != 0) {
+          cerr << ERROR_STR << " file not found " << fn << endl;
+          ret = false;
+        }
+      }
+    }
+  } else {
+    if (opt.files.size() != 0) {
+      cerr << ERROR_STR << " cannot specify batch mode and supply read files" << endl;
+      ret = false;
+    } else {
+      // check for batch files
+      if (opt.batch_mode) {
+        struct stat stFileInfo;
+        auto intstat = stat(opt.batch_file_name.c_str(), &stFileInfo);
+        if (intstat != 0) {
+          cerr << ERROR_STR << " file not found " << opt.batch_file_name << endl;
+          ret = false;
+        }
+        // open the file, parse and fill the batch_files values
+        std::ifstream bfile(opt.batch_file_name);
+        std::string line;
+        std::string id,f1,f2;
+        while (std::getline(bfile,line)) {
+          if (line.size() == 0) {
+            continue;
+          }
+          std::stringstream ss(line);
+          ss >> id;
+          if (id[0] == '#') {
+            continue;
+          }
+          opt.batch_ids.push_back(id);
+          if (opt.single_end && !opt.umi) {
+            ss >> f1;
+            opt.batch_files.push_back({f1});
+            intstat = stat(f1.c_str(), &stFileInfo);
+            if (intstat != 0) {
+              cerr << ERROR_STR << " file not found " << f1 << endl;
+              ret = false;
+            }
+          } else {
+            ss >> f1 >> f2;
+            if (!opt.umi) {
+              opt.batch_files.push_back({f1,f2});
+            } else {
+              opt.umi_files.push_back(f1);
+              opt.batch_files.push_back({f2});
+            }
+            intstat = stat(f1.c_str(), &stFileInfo);
+            if (intstat != 0) {
+              cerr << ERROR_STR << " file not found " << f1 << endl;
+              ret = false;
+            }
+            intstat = stat(f2.c_str(), &stFileInfo);
+            if (intstat != 0) {
+              cerr << ERROR_STR << " file not found " << f2 << endl;
+              ret = false;
+            }
+          }
+        }
+      }
+    }
+  }
+
+
+  /*
+  if (opt.strand_specific && !opt.single_end) {
+    cerr << "Error: strand-specific mode requires single end mode" << endl;
+    ret = false;
+  }*/
+
+  if (!opt.single_end) {
+    if (opt.files.size() % 2 != 0) {
+      cerr << "Error: paired-end mode requires an even number of input files" << endl
+           << "       (use --single for processing single-end reads)" << endl;
+      ret = false;
+    }
+  }
+  
+  if (opt.umi) {
+    opt.single_end = true;
+    if (opt.fld != 0.0 || opt.sd != 0.0) {
+      cerr << "[~warn] you supplied fragment length information for UMI data which will be ignored" << endl;
+    }
+  } else {
+    if ((opt.fld != 0.0 && opt.sd == 0.0) || (opt.sd != 0.0 && opt.fld == 0.0)) {
+      cerr << "Error: cannot supply mean/sd without supplying both -l and -s" << endl;
+      ret = false;
+    }
+
+    if (opt.single_end && (opt.fld == 0.0 || opt.sd == 0.0)) {
+      cerr << "Error: fragment length mean and sd must be supplied for single-end reads using -l and -s" << endl;
+      ret = false;
+    } else if (opt.fld == 0.0 && ret) {
+      // In the future, if we have single-end data we should require this
+      // argument
+      cerr << "[quant] fragment length distribution will be estimated from the data" << endl;
+    } else if (ret && opt.fld > 0.0 && opt.sd > 0.0) {
+      cerr << "[quant] fragment length distribution is truncated gaussian with mean = " <<
+        opt.fld << ", sd = " << opt.sd << endl;
+    }
+
+    if (!opt.single_end && (opt.fld > 0.0 && opt.sd > 0.0)) {
+      cerr << "[~warn] you specified using a gaussian but have paired end data" << endl;
+      cerr << "[~warn] we suggest omitting these parameters and let us estimate the distribution from data" << endl;
+    }
+  }
+
+  if (opt.fld < 0.0) {
+    cerr << "Error: invalid value for mean fragment length " << opt.fld << endl;
+    ret = false;
+  }
+
+  if (opt.sd < 0.0) {
+    cerr << "Error: invalid value for fragment length standard deviation " << opt.sd << endl;
+    ret = false;
+  }
+
+  if (opt.threads <= 0) {
+    cerr << "Error: invalid number of threads " << opt.threads << endl;
+    ret = false;
+  } else {
+    unsigned int n = std::thread::hardware_concurrency();
+    if (n != 0 && n < opt.threads) {
+      cerr << "[~warn]  you asked for " << opt.threads
+           << ", but only " << n << " cores on the machine" << endl;
+    }
+    if (opt.threads > 1 && opt.pseudobam) {
+      cerr << "Error: pseudobam is not compatible with running on many threads."<< endl;
+      ret = false;
+    }
+  }
+
+  return ret;
+}
+
+
 bool CheckOptionsInspect(ProgramOptions& opt) {
 
   bool ret = true;
@@ -1528,7 +1698,7 @@ int main(int argc, char *argv[]) {
         return 0;
       }
       ParseOptionsPseudocov(argc-1,argv+1,opt);
-      if (!CheckOptionsPseudo(opt)) {
+      if (!CheckOptionsPseudocov(opt)) {
         cerr << endl;
         usagePseudocov(false);
         exit(1);
@@ -1550,18 +1720,6 @@ int main(int argc, char *argv[]) {
           num_processed = ProcessBatchReads(index, opt, collection, batchCounts);
           // TODO write pseudocov to file
         }
-
-        std::string call = argv_to_string(argc, argv);
-
-        plaintext_aux(
-            opt.output + "/run_info.json",
-            std::string(std::to_string(index.num_trans)),
-            std::string(std::to_string(0)), // no bootstraps in pseudo
-            std::string(std::to_string(num_processed)),
-            KALLISTO_VERSION,
-            std::string(std::to_string(index.INDEX_VERSION)),
-            start_time,
-            call);
 
         cerr << endl;
       }
